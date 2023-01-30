@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace PersonaModBot.Interactions
@@ -143,5 +144,51 @@ namespace PersonaModBot.Interactions
             
             await channel.SendMessageAsync($"{Context.User.Mention} changed the applied tags to {(selectedTags.Length == 0 ? "none" : string.Join(", ", forum.Tags.Where(t => tags.Contains(t.Id)).Select(t => t.Name)))}.");
         }
+
+        [SlashCommand("rename", "Rename the current post")]
+        public async Task Rename()
+        {
+            var res = await ValidatePermissions(Context.Channel, Context.User, Context.Guild, "rename posts");
+            if (!res.IsValid)
+                return;
+
+            IThreadChannel channel = (IThreadChannel)Context.Channel;
+            ForumConfig config = res.Config!;
+            IGuildUser user = (IGuildUser)Context.User;
+            IForumChannel forum = res.Forum!;
+
+            if (channel.OwnerId != Context.User.Id && !user.GetPermissions(channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowRename))
+            {
+                await RespondAsync("You do not have permission to rename this post.", ephemeral: true);
+                return;
+            }
+
+            var modal = new ModalBuilder()
+                .WithTitle($"Rename {channel.Name}")
+                .WithCustomId("rename-modal")
+                .AddTextInput("New Name", "new-name", placeholder: "Post Name", minLength: 2, maxLength: 100, required: true, value: channel.Name);
+
+            await RespondWithModalAsync(modal.Build());
+        }
+
+        [ModalInteraction("rename-modal")]
+        public async Task RenameModal(RenameModal modal)
+        {
+            string newName = modal.NewName;
+            IThreadChannel channel = (IThreadChannel)Context.Channel;
+            string oldName = channel.Name;
+
+            await channel.ModifyAsync(x => x.Name = newName);   
+            await RespondAsync($"Renamed post to {newName}", ephemeral:true);
+            await channel.SendMessageAsync($"{Context.User.Mention} changed the post's title from \"{oldName}\" to \"{newName}\".");
+        }
+    }
+    
+    public class RenameModal : IModal
+    {
+        public string Title => "Rename";
+        
+        [ModalTextInput("new-name")]        
+        public string NewName { get; set; }
     }
 }
