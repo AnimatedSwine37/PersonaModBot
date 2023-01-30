@@ -54,7 +54,7 @@ namespace PersonaModBot.Interactions
                 return;
             }
 
-            if (!user.GetPermissions((IGuildChannel)Context.Channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowSolve))
+            if (channel.Owner.Id != Context.User.Id && !user.GetPermissions((IGuildChannel)Context.Channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowSolve))
             {
                 await RespondAsync("You do not have permission to mark a post as solved.", ephemeral: true);
                 return;
