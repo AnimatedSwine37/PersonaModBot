@@ -20,43 +20,61 @@ namespace PersonaModBot.Interactions
             _db = db;
         }
 
-        [SlashCommand("solved", "Mark the current post as solved")]
-        public async Task Solved()
+        private async Task<(bool IsValid, SocketForumChannel? Forum, ForumConfig? Config)> ValidatePermissions(IMessageChannel channel, IUser user, IGuild guild, string action)
         {
-            SocketThreadChannel channel = (SocketThreadChannel)Context.Channel;
-            var parent = channel.ParentChannel;
-            if (parent.GetChannelType() != ChannelType.Forum || Context.Channel.GetChannelType() != ChannelType.PublicThread)
+            if(channel.GetChannelType() != ChannelType.PublicThread)
             {
-                await RespondAsync("You can only solve posts in forums.", ephemeral: true);
-                return;
+                await RespondAsync($"You can only {action} in forums.", ephemeral: true);
+                return (false, null, null);
+            }
+            
+            SocketThreadChannel thread = (SocketThreadChannel)channel;
+            var parent = thread.ParentChannel;
+            if (parent.GetChannelType() != ChannelType.Forum || channel.GetChannelType() != ChannelType.PublicThread)
+            {
+                await RespondAsync($"You can only {action} in forums.", ephemeral: true);
+                return (false, null, null);
             }
 
             SocketForumChannel forum = (SocketForumChannel)parent;
 
-            var user = (IGuildUser)Context.User;
+            var guildUser = (IGuildUser)user;
 
             var query = "select GuildConfig { guildId, forumConfigs: { forumId, solvedTag, solvedMessage, allowedRoles: { allowRename, allowSolve, allowTag, roleId } } } filter .guildId = <int64>$guildId";
             await _db.EnsureConnectedAsync();
-            var configRes = await _db.QueryAsync<GuildConfig>(query, new Dictionary<string, object?>() { { "guildId", (long)Context.Guild.Id } }, Capabilities.All);
-                
+            var configRes = await _db.QueryAsync<GuildConfig>(query, new Dictionary<string, object?>() { { "guildId", (long)guild.Id } }, Capabilities.All);
+
             if (configRes.Count == 0)
             {
                 await RespondAsync("The server has not been configured yet. Please get an admin to do so with the `/setup` command");
-                return;
+                return (false, null, null);
             }
-            
+
             GuildConfig guildConfig = configRes.First()!;
             ForumConfig? config = guildConfig.ForumConfigs.FirstOrDefault(x => x.ForumId == forum.Id);
 
-            if(config == null)
+            if (config == null)
             {
-                await RespondAsync("This channel has not been configured yet. Please get an admin to do so with the `/setup` command");
-                return;
+                await RespondAsync("This forum has not been configured yet. Please get an admin to do so with the `/setup` command");
+                return (false, null, null);
             }
+            return (true, forum, config);
+        }
 
-            if (channel.Owner.Id != Context.User.Id && !user.GetPermissions((IGuildChannel)Context.Channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowSolve))
+        [SlashCommand("solved", "Mark the current post as solved")]
+        public async Task Solved()
+        {
+            var res = await ValidatePermissions(Context.Channel, Context.User, Context.Guild, "solve posts");
+            if (!res.IsValid)
+                return;
+            
+            IThreadChannel channel = (IThreadChannel)Context.Channel;
+            ForumConfig config = res.Config!;
+            IGuildUser user = (IGuildUser)Context.User;
+            
+            if (channel.OwnerId != Context.User.Id && !user.GetPermissions(channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowSolve))
             {
-                await RespondAsync("You do not have permission to mark a post as solved.", ephemeral: true);
+                await RespondAsync("You do not have permission to mark this post as solved.", ephemeral: true);
                 return;
             }
 
@@ -74,6 +92,56 @@ namespace PersonaModBot.Interactions
             });
 
             await RespondAsync(config.SolvedMessage);
+        }
+
+        [SlashCommand("tag", "Edit the tags of the current post")]
+        public async Task Tag()
+        {
+            var res = await ValidatePermissions(Context.Channel, Context.User, Context.Guild, "edit the tags of posts");
+            if (!res.IsValid)
+                return;
+
+            IThreadChannel channel = (IThreadChannel)Context.Channel;
+            ForumConfig config = res.Config!;
+            IGuildUser user = (IGuildUser)Context.User;
+            IForumChannel forum = res.Forum!;
+
+            if (channel.OwnerId != Context.User.Id && !user.GetPermissions(channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowTag))
+            {
+                await RespondAsync("You do not have permission to change the tags of this post.", ephemeral: true);
+                return;
+            }
+
+            List<SelectMenuOptionBuilder> options = forum.Tags.Select(tag => new SelectMenuOptionBuilder(tag.Name, tag.Id.ToString(), emote: tag.Emoji, isDefault: channel.AppliedTags.Contains(tag.Id))).ToList();
+            var tagSelect = new SelectMenuBuilder()
+            {
+                CustomId = "tag-selected",
+                Options = options,
+                MinValues = 0,
+                MaxValues = options.Count,
+            };
+
+            await RespondAsync("Please select the tags that you want the post to have applied.", ephemeral: true, components: new ComponentBuilder().WithSelectMenu(tagSelect).Build());
+        }
+
+        [ComponentInteraction("tag-selected")]
+        public async Task TagSelected(string[] selectedTags)
+        {
+            IComponentInteraction interaction = (IComponentInteraction)Context.Interaction;
+            IThreadChannel channel = (IThreadChannel)Context.Channel;
+            IEnumerable<ulong> tags = selectedTags.Select(tag => ulong.Parse(tag));
+            
+            await channel.ModifyAsync(x => x.AppliedTags = new Discord.Optional<IEnumerable<ulong>>(tags));
+
+            await interaction.UpdateAsync(x =>
+            {
+                x.Content = $"Applied tag changes.";
+                x.Components = null;
+            });
+
+            IForumChannel forum = (IForumChannel)((SocketThreadChannel)channel).ParentChannel;
+            
+            await channel.SendMessageAsync($"{Context.User.Mention} changed the applied tags to {(selectedTags.Length == 0 ? "none" : string.Join(", ", forum.Tags.Where(t => tags.Contains(t.Id)).Select(t => t.Name)))}.");
         }
     }
 }
