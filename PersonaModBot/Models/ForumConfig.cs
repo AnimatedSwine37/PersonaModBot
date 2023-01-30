@@ -20,6 +20,6 @@ namespace PersonaModBot.Models
         public string SolvedMessage { get; set; }
 
         [EdgeDBProperty("allowedRoles")]
-        public ulong[] AllowedRoles { get; set; }
+        public List<RoleConfig> AllowedRoles { get; set; }
     }
 }

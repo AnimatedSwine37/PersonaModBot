@@ -5,6 +5,7 @@ using Discord.WebSocket;
 using EdgeDB;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using PersonaModBot.Interactions;
 using System.Reflection;
 
 namespace PersonaModBot
@@ -29,6 +30,7 @@ namespace PersonaModBot
                 .AddSingleton<DiscordSocketClient>()
                 .AddSingleton<InteractionService>()
                 .AddSingleton<InteractionHandler>()
+                .AddSingleton<InteractionHelper>()
                 .AddEdgeDB(clientConfig: config => config.Logger = logger);
 
             return collection.BuildServiceProvider();
@@ -39,7 +41,7 @@ namespace PersonaModBot
             var client = _serviceProvider.GetRequiredService<DiscordSocketClient>();
             var interactionHandler = _serviceProvider.GetRequiredService<InteractionHandler>();
 
-            var logger = LoggerFactory.Create(config => config.AddConsole()).CreateLogger("Discord");
+            var logger = LoggerFactory.Create(config => { config.AddConsole(); config.SetMinimumLevel(LogLevel.Trace); } ).CreateLogger("Discord");
 
             client.Log += async (msg) =>
             {

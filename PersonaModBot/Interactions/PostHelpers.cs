@@ -23,41 +23,9 @@ namespace PersonaModBot.Interactions
         [SlashCommand("solved", "Mark the current post as solved")]
         public async Task Solved()
         {
-            var user = (IGuildUser)Context.User;
-
-            var query = "select GuildConfig { guildId, forumConfigs: { forumId, solvedTag, solvedMessage, allowedRoles }} filter .guildId = <int64>$guildId";
-            var configRes = await _db.QueryAsync<GuildConfig>(query, new Dictionary<string, object?>() { { "guildId", (long)Context.Guild.Id } }, Capabilities.All);
-
-            if (configRes.Count == 0)
-            {
-                await RespondAsync("The server has not been configured yet. Please get an admin to do so with the `/setup` command");
-                return;
-            }
-            
-            GuildConfig guildConfig = configRes.First()!;
-            ForumConfig? config = guildConfig.ForumConfigs.FirstOrDefault(x => x.ForumId == Context.Channel.Id);
-
-            if(config == null)
-            {
-                await RespondAsync("This channel has not been configured yet. Please get an admin to do so with the `/setup` command");
-                return;
-            }
-
-            if (!user.GetPermissions((IGuildChannel)Context.Channel).ManageThreads && config.AllowedRoles.Intersect(user.RoleIds).Count() == 0)
-            {
-                await RespondAsync("You do not have permission to mark a post as solved.", ephemeral: true);
-                return;
-            }
-            
-            if (Context.Channel.GetChannelType() != ChannelType.PublicThread)
-            {
-                await RespondAsync("You can only solve posts in forums.", ephemeral: true);
-                return;
-            }
-
             SocketThreadChannel channel = (SocketThreadChannel)Context.Channel;
             var parent = channel.ParentChannel;
-            if(parent.GetChannelType() != ChannelType.Forum)
+            if (parent.GetChannelType() != ChannelType.Forum || Context.Channel.GetChannelType() != ChannelType.PublicThread)
             {
                 await RespondAsync("You can only solve posts in forums.", ephemeral: true);
                 return;
@@ -65,11 +33,36 @@ namespace PersonaModBot.Interactions
 
             SocketForumChannel forum = (SocketForumChannel)parent;
 
-            var solvedTag = forum.Tags.FirstOrDefault(tag => tag.Name == "Solved");
+            var user = (IGuildUser)Context.User;
+
+            var query = "select GuildConfig { guildId, forumConfigs: { forumId, solvedTag, solvedMessage, allowedRoles: { allowRename, allowSolve, allowTag, roleId } } } filter .guildId = <int64>$guildId";
+            await _db.EnsureConnectedAsync();
+            var configRes = await _db.QueryAsync<GuildConfig>(query, new Dictionary<string, object?>() { { "guildId", (long)Context.Guild.Id } }, Capabilities.All);
+                
+            if (configRes.Count == 0)
+            {
+                await RespondAsync("The server has not been configured yet. Please get an admin to do so with the `/setup` command");
+                return;
+            }
+            
+            GuildConfig guildConfig = configRes.First()!;
+            ForumConfig? config = guildConfig.ForumConfigs.FirstOrDefault(x => x.ForumId == forum.Id);
+
+            if(config == null)
+            {
+                await RespondAsync("This channel has not been configured yet. Please get an admin to do so with the `/setup` command");
+                return;
+            }
+
+            if (!user.GetPermissions((IGuildChannel)Context.Channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowSolve))
+            {
+                await RespondAsync("You do not have permission to mark a post as solved.", ephemeral: true);
+                return;
+            }
 
             var currentTags = channel.AppliedTags;
 
-            if(currentTags.Contains(solvedTag.Id))
+            if(currentTags.Contains(config.SolvedTag))
             {
                 await RespondAsync("This post is already tagged as solved.", ephemeral: true);
                 return;
@@ -77,7 +70,7 @@ namespace PersonaModBot.Interactions
 
             await channel.ModifyAsync(x =>
             {
-                    x.AppliedTags = Discord.Optional.Create(currentTags.Append(solvedTag.Id));
+                    x.AppliedTags = Discord.Optional.Create(currentTags.Append(config.SolvedTag));
             });
 
             await RespondAsync("This issue has been solved! (This is hopefully true)");
