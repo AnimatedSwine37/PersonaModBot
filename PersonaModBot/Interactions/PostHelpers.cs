@@ -73,7 +73,7 @@ namespace PersonaModBot.Interactions
                     x.AppliedTags = Discord.Optional.Create(currentTags.Append(config.SolvedTag));
             });
 
-            await RespondAsync("This issue has been solved! (This is hopefully true)");
+            await RespondAsync(config.SolvedMessage);
         }
     }
 }
