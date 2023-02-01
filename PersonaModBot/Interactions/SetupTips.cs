@@ -69,7 +69,7 @@ namespace PersonaModBot.Interactions
             var modal = new ModalBuilder()
                 .WithTitle("Set Tip Message")
                 .WithCustomId("setup-tips-message")
-                .AddTextInput("Message", "message", style: TextInputStyle.Paragraph, placeholder: "The message to display when a post is created.", value: tipMessage, required: true);
+                .AddTextInput("Message", "message", style: TextInputStyle.Paragraph, placeholder: "The message to display when a post is created.", value: tipMessage, required: true, maxLength: 2000);
 
             await RespondWithModalAsync(modal.Build());
         }
