@@ -13,7 +13,7 @@ namespace PersonaModBot
     public class Program
     {
         private readonly IServiceProvider _serviceProvider;
-        
+
         public Program()
         {
             _serviceProvider = CreateServices();
@@ -24,19 +24,25 @@ namespace PersonaModBot
 
         static IServiceProvider CreateServices()
         {
-            
+
             var logger = LoggerFactory.Create(config => config.AddConsole()
             .SetMinimumLevel(ToLogLevel(Environment.GetEnvironmentVariable("EDGEDB_LOG_LEVEL"))))
             .CreateLogger("EdgeDB");
 
-#if DEBUG
-            var dbConnection = EdgeDBConnection.ResolveEdgeDBTOML();
-#else
+            EdgeDBConnection dbConnection;
+
             var dsn = Environment.GetEnvironmentVariable("EDGEDB_DSN");
-            if (dsn == null) dsn = "edgedb://";
-            var dbConnection = EdgeDBConnection.FromDSN(dsn);
-            dbConnection.TLSSecurity = TLSSecurityMode.Insecure;
-#endif
+            if (dsn == null)
+            {
+                dbConnection = EdgeDBConnection.ResolveEdgeDBTOML();
+                logger.LogDebug("Using EdgeDB toml file for connection as no EDGEDB_DSN was specified");
+            }
+            else
+            {
+                logger.LogDebug($"Using dsn: {dsn} for connection");
+                dbConnection = EdgeDBConnection.FromDSN(dsn);
+                dbConnection.TLSSecurity = TLSSecurityMode.Insecure;
+            }
 
             var collection = new ServiceCollection()
                 .AddSingleton<DiscordSocketClient>()
@@ -55,7 +61,7 @@ namespace PersonaModBot
             var interactionHandler = _serviceProvider.GetRequiredService<InteractionHandler>();
 
             var logLevel = ToLogLevel(Environment.GetEnvironmentVariable("BOT_LOG_LEVEL"));
-            var logger = LoggerFactory.Create(config => { config.AddConsole(); config.SetMinimumLevel(logLevel); } ).CreateLogger("Discord");
+            var logger = LoggerFactory.Create(config => { config.AddConsole(); config.SetMinimumLevel(logLevel); }).CreateLogger("Discord");
 
             client.Log += async (msg) =>
             {
@@ -74,7 +80,7 @@ namespace PersonaModBot
             {
                 token = File.ReadAllText("token.txt");
             }
-                        
+
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
 
@@ -83,7 +89,7 @@ namespace PersonaModBot
 
         private static LogLevel ToLogLevel(LogSeverity severity)
         {
-            switch(severity)
+            switch (severity)
             {
                 case LogSeverity.Critical: return LogLevel.Critical;
                 case LogSeverity.Error: return LogLevel.Error;
@@ -97,7 +103,7 @@ namespace PersonaModBot
 
         private static LogLevel ToLogLevel(string? severity)
         {
-            switch(severity)
+            switch (severity)
             {
                 case "CRITICAL": return LogLevel.Critical;
                 case "ERROR": return LogLevel.Error;
