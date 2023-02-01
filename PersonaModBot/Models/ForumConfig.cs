@@ -12,7 +12,18 @@ namespace PersonaModBot.Models
     {
         [EdgeDBProperty("forumId")]
         public ulong ForumId { get; set; }
+        
+        [EdgeDBProperty("helperConfig")]
+        public ForumHelperConfig? HelperConfig { get; set; }
+        
+        [EdgeDBProperty("tipConfig")]
+        public ForumTipConfig? TipConfig { get; set; }
 
+    }
+
+    [EdgeDBType]
+    public class ForumHelperConfig
+    {
         [EdgeDBProperty("solvedTag")]
         public ulong SolvedTag { get; set; }
 
@@ -21,5 +32,15 @@ namespace PersonaModBot.Models
 
         [EdgeDBProperty("allowedRoles")]
         public List<RoleConfig> AllowedRoles { get; set; }
+    }
+
+    [EdgeDBType]
+    public class ForumTipConfig
+    {
+        [EdgeDBProperty("postTip")]
+        public bool PostTip { get; set; }
+
+        [EdgeDBProperty("tipMessage")]
+        public string TipMessage { get; set; }
     }
 }

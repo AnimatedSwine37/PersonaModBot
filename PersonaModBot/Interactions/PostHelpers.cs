@@ -15,10 +15,12 @@ namespace PersonaModBot.Interactions
     public class PostHelpers : InteractionModuleBase
     {
         private readonly EdgeDBClient _db;
+        private readonly DbUtils _dbUtils;
 
-        public PostHelpers(EdgeDBClient db)
+        public PostHelpers(EdgeDBClient db, DbUtils dbUtils)
         {
             _db = db;
+            _dbUtils = dbUtils;
         }
 
         private async Task<(bool IsValid, SocketForumChannel? Forum, ForumConfig? Config)> ValidatePermissions(IMessageChannel channel, IUser user, IGuild guild, string action)
@@ -41,20 +43,17 @@ namespace PersonaModBot.Interactions
 
             var guildUser = (IGuildUser)user;
 
-            var query = "select GuildConfig { guildId, forumConfigs: { forumId, solvedTag, solvedMessage, allowedRoles: { allowRename, allowSolve, allowTag, roleId } } } filter .guildId = <int64>$guildId";
-            await _db.EnsureConnectedAsync();
-            var configRes = await _db.QueryAsync<GuildConfig>(query, new Dictionary<string, object?>() { { "guildId", (long)guild.Id } }, Capabilities.All);
+            GuildConfig? guildConfig = await _dbUtils.GetGuildConfig(guild.Id);
 
-            if (configRes.Count == 0)
+            if (guildConfig == null)
             {
                 await RespondAsync("The server has not been configured yet. Please get an admin to do so with the `/setup` command");
                 return (false, null, null);
             }
 
-            GuildConfig guildConfig = configRes.First()!;
             ForumConfig? config = guildConfig.ForumConfigs.FirstOrDefault(x => x.ForumId == forum.Id);
 
-            if (config == null)
+            if (config == null || (config != null && config.HelperConfig == null))
             {
                 await RespondAsync("This forum has not been configured yet. Please get an admin to do so with the `/setup` command");
                 return (false, null, null);
@@ -70,7 +69,7 @@ namespace PersonaModBot.Interactions
                 return;
             
             IThreadChannel channel = (IThreadChannel)Context.Channel;
-            ForumConfig config = res.Config!;
+            ForumHelperConfig config = res.Config!.HelperConfig!;
             IGuildUser user = (IGuildUser)Context.User;
             
             if (channel.OwnerId != Context.User.Id && !user.GetPermissions(channel).ManageThreads && !config.AllowedRoles.Any(role => user.RoleIds.Contains(role.RoleId) && role.AllowSolve))
@@ -103,7 +102,7 @@ namespace PersonaModBot.Interactions
                 return;
 
             IThreadChannel channel = (IThreadChannel)Context.Channel;
-            ForumConfig config = res.Config!;
+            ForumHelperConfig config = res.Config!.HelperConfig!;
             IGuildUser user = (IGuildUser)Context.User;
             IForumChannel forum = res.Forum!;
 
@@ -153,7 +152,7 @@ namespace PersonaModBot.Interactions
                 return;
 
             IThreadChannel channel = (IThreadChannel)Context.Channel;
-            ForumConfig config = res.Config!;
+            ForumHelperConfig config = res.Config!.HelperConfig!;
             IGuildUser user = (IGuildUser)Context.User;
             IForumChannel forum = res.Forum!;
 

@@ -3,11 +3,21 @@ module default {
         required property forumId -> int64 {
             constraint exclusive;
         }
+        link helperConfig -> ForumHelperConfig;
+        link tipConfig -> ForumTipConfig;
+    }
+
+    type ForumHelperConfig {
         required property solvedTag -> int64;
         required property solvedMessage -> str;
         required multi link allowedRoles -> RoleConfig {
             constraint exclusive;
         }
+    }
+
+    type ForumTipConfig {
+        required property postTip -> bool;
+        required property tipMessage -> str;
     }
 
     type RoleConfig {

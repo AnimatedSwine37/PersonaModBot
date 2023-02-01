@@ -15,12 +15,16 @@ namespace PersonaModBot
         private readonly DiscordSocketClient _client;
         private readonly InteractionService _commands;
         private readonly IServiceProvider _services;
+        private readonly DbUtils _dbUtils;
 
-        public InteractionHandler(DiscordSocketClient client, InteractionService commands, IServiceProvider services)
+        private List<ulong> _doneTips = new();
+
+        public InteractionHandler(DiscordSocketClient client, InteractionService commands, IServiceProvider services, DbUtils dbUtils)
         {
             _client = client;
             _commands = commands;
             _services = services;
+            _dbUtils = dbUtils;
         }
 
         public async Task InitialiseAsync()
@@ -35,8 +39,24 @@ namespace PersonaModBot
 
 
             _client.InteractionCreated += HandleInteraction;
+            _client.ThreadCreated += HandleThreadCreated;
         }
 
+        private async Task HandleThreadCreated(SocketThreadChannel channel)
+        {
+            if (channel.ParentChannel.GetChannelType() != ChannelType.Forum)
+                return;
+
+            var forum = (IForumChannel)channel.ParentChannel;
+            var guildConfig = await _dbUtils.GetGuildConfig(forum.GuildId);
+            var forumConfig = guildConfig?.ForumConfigs.FirstOrDefault(x => x.ForumId == forum.Id);
+            if (forumConfig == null || forumConfig.TipConfig == null || _doneTips.Contains(channel.Id))
+                return;
+
+            await channel.SendMessageAsync(forumConfig.TipConfig.TipMessage);
+            if (_doneTips.Count > 100) _doneTips.Clear(); // This is totall how memory management works :D
+            _doneTips.Add(channel.Id);
+        }
 
         private async Task HandleInteraction(SocketInteraction arg)
         {
