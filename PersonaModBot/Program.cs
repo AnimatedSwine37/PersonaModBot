@@ -61,8 +61,16 @@ namespace PersonaModBot
 
             client.Ready += interactionHandler.InitialiseAsync;
 
-            var token = File.ReadAllText("token.txt");
-            
+            string token = "";
+            if (Environment.GetEnvironmentVariable("BOT_TOKEN") != null)
+            {
+                token = Environment.GetEnvironmentVariable("BOT_TOKEN")!;
+            }
+            else
+            {
+                token = File.ReadAllText("token.txt");
+            }
+                        
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
 
