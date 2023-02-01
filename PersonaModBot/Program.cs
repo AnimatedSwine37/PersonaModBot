@@ -24,14 +24,24 @@ namespace PersonaModBot
 
         static IServiceProvider CreateServices()
         {
-            var logger = LoggerFactory.Create(config => config.AddConsole()).CreateLogger("EdgeDB");
+            var logger = LoggerFactory.Create(config => config.AddConsole().SetMinimumLevel(LogLevel.Trace)).CreateLogger("EdgeDB");
+
+#if DEBUG
+            var dbConnection = EdgeDBConnection.ResolveEdgeDBTOML();
+#else
+            var dsn = Environment.GetEnvironmentVariable("EDGEDB_DSN");
+            if (dsn == null) dsn = "edgedb://";
+            var dbConnection = EdgeDBConnection.FromDSN(dsn);
+            dbConnection.TLSSecurity = TLSSecurityMode.Insecure;
+#endif
 
             var collection = new ServiceCollection()
                 .AddSingleton<DiscordSocketClient>()
                 .AddSingleton<InteractionService>()
+                .AddSingleton<DbUtils>()
                 .AddSingleton<InteractionHandler>()
                 .AddSingleton<InteractionHelper>()
-                .AddEdgeDB(clientConfig: config => config.Logger = logger);
+                .AddEdgeDB(dbConnection, config => config.Logger = logger);
 
             return collection.BuildServiceProvider();
         }
