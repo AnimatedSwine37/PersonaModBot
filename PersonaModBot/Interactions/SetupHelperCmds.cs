@@ -54,6 +54,7 @@ namespace PersonaModBot.Interactions
         {
             IComponentInteraction interaction = (IComponentInteraction)Context.Interaction;
 
+            if (_helper.SetupHelperForums.ContainsKey(interaction.Message.Id)) _helper.SetupHelperForums.Remove(interaction.Message.Id);
             _helper.SetupHelperForums.Add(interaction.Message.Id, selectedForums.Select(f => (ulong.Parse(f), (ulong)0)).ToArray());
 
             var channels = (await Context.Guild.GetChannelsAsync()).Where(x => selectedForums.Contains(x.Id.ToString()));
@@ -138,7 +139,11 @@ namespace PersonaModBot.Interactions
         public async Task SetupRoles(string[] selectedRoles)
         {
             IComponentInteraction interaction = (IComponentInteraction)Context.Interaction;
-            _helper.SetupHelperRoles.Add(interaction.Message.Id, selectedRoles.Select(role => new RoleConfig(ulong.Parse(role), false, false, false)).ToArray());
+
+            if (_helper.SetupHelperRoles.ContainsKey(interaction.Message.Id))
+                _helper.SetupHelperRoles[interaction.Message.Id] = _helper.SetupHelperRoles[interaction.Message.Id].Concat(selectedRoles.Select(role => new RoleConfig(ulong.Parse(role), false, false, false))).ToArray();
+            else
+                _helper.SetupHelperRoles.Add(interaction.Message.Id, selectedRoles.Select(role => new RoleConfig(ulong.Parse(role), false, false, false)).ToArray());
 
             var roles = Context.Guild.Roles.Where(role => selectedRoles.Contains(role.Id.ToString()));
 

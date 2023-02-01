@@ -54,6 +54,7 @@ namespace PersonaModBot.Interactions
         {
             IComponentInteraction interaction = (IComponentInteraction)Context.Interaction;
 
+            if (_helper.SetupTips.ContainsKey(Context.User.Id)) _helper.SetupTips.Remove(Context.User.Id);
             _helper.SetupTips.Add(Context.User.Id, selectedForums.Select(f => ulong.Parse(f)).ToArray());
 
             var guildConfig = await _dbUtils.GetGuildConfig(Context.Guild.Id);
