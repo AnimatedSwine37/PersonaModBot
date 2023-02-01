@@ -24,7 +24,10 @@ namespace PersonaModBot
 
         static IServiceProvider CreateServices()
         {
-            var logger = LoggerFactory.Create(config => config.AddConsole().SetMinimumLevel(LogLevel.Trace)).CreateLogger("EdgeDB");
+            
+            var logger = LoggerFactory.Create(config => config.AddConsole()
+            .SetMinimumLevel(ToLogLevel(Environment.GetEnvironmentVariable("EDGEDB_LOG_LEVEL"))))
+            .CreateLogger("EdgeDB");
 
 #if DEBUG
             var dbConnection = EdgeDBConnection.ResolveEdgeDBTOML();
@@ -51,7 +54,8 @@ namespace PersonaModBot
             var client = _serviceProvider.GetRequiredService<DiscordSocketClient>();
             var interactionHandler = _serviceProvider.GetRequiredService<InteractionHandler>();
 
-            var logger = LoggerFactory.Create(config => { config.AddConsole(); config.SetMinimumLevel(LogLevel.Trace); } ).CreateLogger("Discord");
+            var logLevel = ToLogLevel(Environment.GetEnvironmentVariable("BOT_LOG_LEVEL"));
+            var logger = LoggerFactory.Create(config => { config.AddConsole(); config.SetMinimumLevel(logLevel); } ).CreateLogger("Discord");
 
             client.Log += async (msg) =>
             {
@@ -89,6 +93,20 @@ namespace PersonaModBot
                 case LogSeverity.Verbose: return LogLevel.Trace;
             }
             return LogLevel.Information;
+        }
+
+        private static LogLevel ToLogLevel(string? severity)
+        {
+            switch(severity)
+            {
+                case "CRITICAL": return LogLevel.Critical;
+                case "ERROR": return LogLevel.Error;
+                case "WARNING": return LogLevel.Warning;
+                case "INFO": return LogLevel.Information;
+                case "DEBUG": return LogLevel.Debug;
+                case "TRACE": return LogLevel.Trace;
+                default: return LogLevel.Warning;
+            }
         }
     }
 }
